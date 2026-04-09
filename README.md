@@ -22,3 +22,10 @@ Example:
 
 - `images/crawler/tinybot-admin-product-bot/tiny-admin-product-operation-guide/`
 - `images/crawler/tinybot-admin-product-bot/tiny-admin-appointment-operation-guide/`
+
+## Migration rule
+
+- Keep tutorial Markdown in its source project.
+- Publish finalized screenshots here as the canonical image source.
+- After migration, update source-project Markdown to reference these remote image URLs.
+- Keep old local screenshot folders only as archive/reference material, not as active documentation assets.
