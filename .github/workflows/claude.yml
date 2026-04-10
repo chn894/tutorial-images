@@ -1,0 +1,71 @@
+# Claude Forge — Caller Workflow
+# Copy this file to your repo's .github/workflows/claude.yml
+# Required secrets: CLAUDE_CODE_OAUTH_TOKEN, APP_PRIVATE_KEY
+# Required variables: APP_ID
+#
+# Customize inputs per job to override defaults:
+#   with:
+#     language: 'english'
+#     model: 'claude-sonnet-4-6'
+
+name: Claude Forge
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  # ── Issue Expansion ─────────────────────────────────
+  issue-expand:
+    if: >
+      github.event_name == 'issues' &&
+      github.event.sender.type != 'Bot' &&
+      contains(github.event.issue.body, '@claude')
+    uses: chn894/claude-forge/.github/workflows/issue-expand.yml@master
+    secrets: inherit
+
+  # ── Agent Pipeline (implement + test + PR) ──────────
+  # 排除 bot 觸發：避免 Clarifier/Planner/TDD 自己發的狀態留言
+  # 觸發新的 pipeline（self-trigger loop）
+  agent-pipeline:
+    if: >
+      (github.event_name == 'issue_comment' &&
+       github.event.comment.user.type != 'Bot' &&
+       contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' &&
+       github.event.comment.user.type != 'Bot' &&
+       contains(github.event.comment.body, '@claude'))
+    uses: chn894/claude-forge/.github/workflows/agent-pipeline.yml@master
+    secrets: inherit
+
+  # ── PR Code Review ──────────────────────────────────
+  claude-review:
+    if: >
+      github.event_name == 'pull_request'
+    uses: chn894/claude-forge/.github/workflows/claude-review.yml@master
+    secrets: inherit
+
+  # ── Auto-Fix from Review Feedback ───────────────────
+  claude-fix:
+    if: >
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.user.type == 'Bot') ||
+      (github.event_name == 'pull_request_review_comment' &&
+       github.event.comment.user.type == 'Bot')
+    uses: chn894/claude-forge/.github/workflows/claude-fix.yml@master
+    secrets: inherit
