@@ -61,10 +61,14 @@ jobs:
     secrets: inherit
 
   # ── Auto-Fix from Review Feedback ───────────────────
+  # 只在 reviewer 真的要求修改時跑（APPROVED/COMMENTED 不觸發）
+  # 避免無謂的 Claude Code install 撞 CDN 429 限速
+  # pull_request_review_comment（inline comment）沒有 state 概念，維持原條件
   claude-fix:
     if: >
       (github.event_name == 'pull_request_review' &&
-       github.event.review.user.type == 'Bot') ||
+       github.event.review.user.type == 'Bot' &&
+       github.event.review.state == 'changes_requested') ||
       (github.event_name == 'pull_request_review_comment' &&
        github.event.comment.user.type == 'Bot')
     uses: chn894/claude-forge/.github/workflows/claude-fix.yml@master
