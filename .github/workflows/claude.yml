@@ -15,12 +15,11 @@ on:
     types: [opened, edited]
   issue_comment:
     types: [created]
-  pull_request:
-    types: [opened, synchronize, reopened]
-  pull_request_review:
-    types: [submitted]
+  # PR inline comments — 用戶可在 PR diff 上留言 `@claude` 觸發 fix
   pull_request_review_comment:
     types: [created]
+  # 註：pull_request 和 pull_request_review 觸發已移除（standalone reviewer/fix 已下架）
+  # PR 上有需要重新審查時，留言 `@claude 開工` 觸發 in-pipeline reviewer
 
 permissions:
   contents: write
@@ -53,23 +52,11 @@ jobs:
     uses: chn894/claude-forge/.github/workflows/agent-pipeline.yml@master
     secrets: inherit
 
-  # ── PR Code Review ──────────────────────────────────
-  claude-review:
-    if: >
-      github.event_name == 'pull_request'
-    uses: chn894/claude-forge/.github/workflows/claude-review.yml@master
-    secrets: inherit
-
-  # ── Auto-Fix from Review Feedback ───────────────────
-  # 只在 reviewer 真的要求修改時跑（APPROVED/COMMENTED 不觸發）
-  # 避免無謂的 Claude Code install 撞 CDN 429 限速
-  # pull_request_review_comment（inline comment）沒有 state 概念，維持原條件
-  claude-fix:
-    if: >
-      (github.event_name == 'pull_request_review' &&
-       github.event.review.user.type == 'Bot' &&
-       github.event.review.state == 'changes_requested') ||
-      (github.event_name == 'pull_request_review_comment' &&
-       github.event.comment.user.type == 'Bot')
-    uses: chn894/claude-forge/.github/workflows/claude-fix.yml@master
-    secrets: inherit
+  # ── Standalone PR Review/Fix REMOVED ─────────────────
+  # Review 與 Fix 邏輯已整合進 agent-pipeline.yml 的 Stage 3g~3m
+  # （session-driven sub-agent 協作，學自 j7 架構）
+  # 移除原因：
+  #   1. 兩 reviewer 邏輯不同步問題（standalone 不認 Phase 拆分）
+  #   2. claude-fix 在 PR push 時誤觸發 → 撞 CDN install 429
+  #   3. 每 rerun 多 5-7 則 bot comment → 撞 ARG_MAX
+  # 若需 fix 已合併 PR 上的問題，留言 `@claude 開工` 重觸發 pipeline。
