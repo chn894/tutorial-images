@@ -1,7 +1,15 @@
 # Claude Forge — Caller Workflow
 # Copy this file to your repo's .github/workflows/claude.yml
+#
 # Required secrets: CLAUDE_CODE_OAUTH_TOKEN, APP_PRIVATE_KEY
 # Required variables: APP_ID
+#
+# Optional secrets:
+#   VIMEO_ACCESS_TOKEN — If set, Job 2 E2E failure videos and Job 3 AI visual
+#                        acceptance videos are uploaded to Vimeo (unlisted)
+#                        and linked inline in issue/PR comments. Without it,
+#                        videos remain in GitHub artifacts only (login required).
+#                        Token scope: upload + edit. Quota applies per Vimeo plan.
 #
 # Customize inputs per job to override defaults:
 #   with:
@@ -18,8 +26,10 @@ on:
   # PR inline comments — 用戶可在 PR diff 上留言 `@claude` 觸發 fix
   pull_request_review_comment:
     types: [created]
-  # 註：pull_request 和 pull_request_review 觸發已移除（standalone reviewer/fix 已下架）
-  # PR 上有需要重新審查時，留言 `@claude 開工` 觸發 in-pipeline reviewer
+  # PR review body (整體 review 而非 inline)
+  pull_request_review:
+    types: [submitted]
+  # 註：pull_request（opened/synchronize）觸發不掛，避免推 code 即觸發
 
 permissions:
   contents: write
@@ -30,25 +40,38 @@ permissions:
 
 jobs:
   # ── Issue Expansion ─────────────────────────────────
+  # Security: bot filter + author_association whitelist.
+  # Ensures only repo owner / org member / invited collaborator can trigger.
+  # Critical if this caller lives in a public repo.
   issue-expand:
     if: >
       github.event_name == 'issues' &&
       github.event.sender.type != 'Bot' &&
-      contains(github.event.issue.body, '@claude')
+      contains(github.event.issue.body, '@claude') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+               github.event.issue.author_association)
     uses: chn894/claude-forge/.github/workflows/issue-expand.yml@master
     secrets: inherit
 
   # ── Agent Pipeline (implement + test + PR) ──────────
-  # 排除 bot 觸發：避免 Clarifier/Planner/TDD 自己發的狀態留言
-  # 觸發新的 pipeline（self-trigger loop）
+  # Same security model as issue-expand.
   agent-pipeline:
     if: >
       (github.event_name == 'issue_comment' &&
        github.event.comment.user.type != 'Bot' &&
-       contains(github.event.comment.body, '@claude')) ||
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.comment.author_association)) ||
       (github.event_name == 'pull_request_review_comment' &&
        github.event.comment.user.type != 'Bot' &&
-       contains(github.event.comment.body, '@claude'))
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' &&
+       github.event.review.user.type != 'Bot' &&
+       contains(github.event.review.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.review.author_association))
     uses: chn894/claude-forge/.github/workflows/agent-pipeline.yml@master
     secrets: inherit
 
